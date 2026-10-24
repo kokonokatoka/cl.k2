@@ -8,7 +8,8 @@ const SEARCH_DIRS := [
 	"res://src",
 	"res://scenes",
 	"res://content",
-	"res://shaders"
+	"res://shaders",
+	"res://assets"
 ]
 
 func test_all_project_resources_load_cleanly() -> void:
@@ -26,6 +27,17 @@ func test_all_project_resources_load_cleanly() -> void:
 			checked_count += 1
 	
 	assert_eq(checked_count, files.size(), "all collected resources loaded without failure")
+
+
+func test_japanese_font_loads_and_has_cjk_glyphs() -> void:
+	var font := UiTheme.get_font()
+	assert_true(font != null, "UiTheme font loads")
+	# 日本語の漢字「出撃」「換装」「戦闘」、ひらがな、カタカナを文字化けせず描画できるかテスト
+	var test_string := "出撃 換装 戦闘 パーツ ロボット"
+	for ch in test_string:
+		var unicode := ch.unicode_at(0)
+		if unicode != 32: # スペース以外
+			assert_true(font.has_char(unicode), "font has glyph for '%s' (U+%04X)" % [ch, unicode])
 
 
 func _collect_files(dir_path: String, out: Array[String]) -> void:

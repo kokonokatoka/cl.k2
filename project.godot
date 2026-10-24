@@ -52,3 +52,7 @@ common/max_physics_steps_per_frame=8
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 renderer/rendering_method.web="gl_compatibility"
+
+[gui]
+
+theme/custom_font="res://assets/fonts/BIZUDGothic-Regular.ttf"

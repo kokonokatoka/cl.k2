@@ -13,7 +13,19 @@ const BAD := Color(1.0, 0.4, 0.4)
 const HEALTH := Color(0.9, 0.3, 0.35)
 const ENERGY := Color(0.3, 0.8, 1.0)
 
+const FONT_PATH := "res://assets/fonts/BIZUDGothic-Regular.ttf"
+
 static var _theme: Theme
+static var _font: Font
+
+
+static func get_font() -> Font:
+	if _font == null:
+		if ResourceLoader.exists(FONT_PATH):
+			_font = load(FONT_PATH) as Font
+		if _font == null:
+			_font = ThemeDB.fallback_font
+	return _font
 
 
 static func get_theme() -> Theme:
@@ -37,6 +49,9 @@ static func panel_style(background: Color = PANEL_BG, border: Color = PANEL_BORD
 
 static func _build() -> Theme:
 	var theme := Theme.new()
+	var font := get_font()
+	if font != null:
+		theme.default_font = font
 	theme.default_font_size = 16
 
 	theme.set_stylebox("panel", "PanelContainer", panel_style())
