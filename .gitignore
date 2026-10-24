@@ -27,3 +27,10 @@ dist/
 
 # Godot 4.4+ UID files
 *.uid
+
+# Test screenshots
+*_test*.png
+*_test*.png.import
+out.png
+out.png.import
+

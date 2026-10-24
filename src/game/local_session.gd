@@ -85,6 +85,15 @@ func sample(alpha: float) -> RenderFrame:
 		entity.type_id = pk.part_id if pk.kind == SimPickup.Kind.PART else (&"health" if pk.kind == SimPickup.Kind.HEALTH else &"energy")
 		entity.state = 1 if pk.life >= 0.0 and pk.life < 8.0 else 0  # 消えかけ
 		frame.pickups.append(entity)
+
+	frame.wave_number = world.wave_number
+	frame.wave_kills = world.wave_kills
+	frame.wave_target = world.wave_target
+	frame.boss_id = world.boss_id
+	if world.boss_id > 0 and world.enemies.has(world.boss_id):
+		var boss: SimEnemy = world.enemies[world.boss_id]
+		frame.boss_health_fraction = boss.health_fraction()
+
 	return frame
 
 

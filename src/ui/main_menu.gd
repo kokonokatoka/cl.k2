@@ -30,6 +30,9 @@ var _back_button: Button
 var _online_title: Label
 var _settings: SettingsMenu
 var _settings_center: CenterContainer
+var _garage: GarageMenu
+var _shade: ColorRect
+var _menu_margin: MarginContainer
 
 
 func _ready() -> void:
@@ -54,6 +57,14 @@ func _notification(what: int) -> void:
 func _process(delta: float) -> void:
 	_time += delta
 	var angle := _time * 0.18
+	if _garage != null and _garage.visible:
+		# ガレージ表示中は機体を中央寄りにゆっくり回転
+		_camera.position = Vector3(sin(angle) * 4.2, 1.8, cos(angle) * 4.2)
+		_camera.look_at(Vector3(0, 0.8, 0))
+		_entity.yaw = _time * 0.4
+		_robot.apply(_entity, delta)
+		return
+
 	_camera.position = Vector3(sin(angle) * 5.2, 2.7, cos(angle) * 5.2)
 	_camera.look_at(Vector3(0, 1.0, 0))
 	_entity.yaw = _time * 0.7
@@ -66,7 +77,9 @@ func _process(delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause"):
-		if _settings_center.visible:
+		if _garage != null and _garage.visible:
+			_close_garage()
+		elif _settings_center.visible:
 			_close_settings()
 		elif _online_panel.visible:
 			_show_main()
@@ -123,12 +136,12 @@ func _build_ui() -> void:
 	layer.add_child(_root)
 
 	# 左側グラデーション背景
-	var shade := ColorRect.new()
-	shade.set_anchors_preset(Control.PRESET_LEFT_WIDE)
-	shade.custom_minimum_size.x = 540
-	shade.color = Color(0.015, 0.025, 0.045, 0.78)
-	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_root.add_child(shade)
+	_shade = ColorRect.new()
+	_shade.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+	_shade.custom_minimum_size.x = 540
+	_shade.color = Color(0.015, 0.025, 0.045, 0.78)
+	_shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(_shade)
 
 	# 四隅のミリタリーフレーム
 	_visor_overlay = Control.new()
@@ -137,17 +150,17 @@ func _build_ui() -> void:
 	_visor_overlay.draw.connect(_draw_menu_brackets)
 	_root.add_child(_visor_overlay)
 
-	var margin := MarginContainer.new()
-	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 64)
-	margin.add_theme_constant_override("margin_top", 48)
-	margin.add_theme_constant_override("margin_bottom", 40)
-	_root.add_child(margin)
+	_menu_margin = MarginContainer.new()
+	_menu_margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_menu_margin.add_theme_constant_override("margin_left", 64)
+	_menu_margin.add_theme_constant_override("margin_top", 48)
+	_menu_margin.add_theme_constant_override("margin_bottom", 40)
+	_root.add_child(_menu_margin)
 
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 6)
 	column.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	margin.add_child(column)
+	_menu_margin.add_child(column)
 
 	# タイトルヘッダー
 	var sub_header := Label.new()
@@ -183,10 +196,11 @@ func _build_ui() -> void:
 	column.add_child(_menu_box)
 
 	_buttons["solo"] = _make_cyber_button(_menu_box, "01 // DEPLOY SOLO (出撃)", _on_solo, Color(0.2, 0.85, 1.0))
-	_buttons["online"] = _make_cyber_button(_menu_box, "02 // ONLINE MULTIPLAYER (通信対戦)", _show_online, Color(0.3, 0.95, 0.6))
-	_buttons["settings"] = _make_cyber_button(_menu_box, "03 // SYSTEM SETTINGS (設定)", _open_settings, Color(0.7, 0.8, 0.9))
+	_buttons["garage"] = _make_cyber_button(_menu_box, "02 // MECHA DOCK (機体換装・兵装)", _open_garage, Color(1.0, 0.75, 0.2))
+	_buttons["online"] = _make_cyber_button(_menu_box, "03 // ONLINE MULTIPLAYER (通信対戦)", _show_online, Color(0.3, 0.95, 0.6))
+	_buttons["settings"] = _make_cyber_button(_menu_box, "04 // SYSTEM SETTINGS (設定)", _open_settings, Color(0.7, 0.8, 0.9))
 	if not OS.has_feature("web"):
-		_buttons["quit"] = _make_cyber_button(_menu_box, "04 // DISENGAGE (終了)", _on_quit, Color(1.0, 0.4, 0.4))
+		_buttons["quit"] = _make_cyber_button(_menu_box, "05 // DISENGAGE (終了)", _on_quit, Color(1.0, 0.4, 0.4))
 
 	_build_online_panel(column)
 
@@ -222,7 +236,18 @@ func _build_ui() -> void:
 	_settings_center.add_child(_settings)
 	_root.add_child(_settings_center)
 
+	# ガレージ（MECHA DOCK）
+	_garage = GarageMenu.new()
+	_garage.visible = false
+	_garage.back_requested.connect(_close_garage)
+	_garage.deploy_requested.connect(_on_solo)
+	_garage.set_robot_preview_callback(func(loadout: Loadout) -> void:
+		_entity.loadout = loadout.to_indices())
+	_root.add_child(_garage)
+
 	_buttons["solo"].grab_focus()
+	if Cfg.get_bool("garage"):
+		_open_garage()
 
 
 func _make_cyber_button(parent: Control, label_text: String, callback: Callable, accent_color: Color) -> Button:
@@ -371,6 +396,29 @@ func _on_connect() -> void:
 		return
 	Settings.set_value("net/server", url)
 	Game.start_online(url)
+
+
+func _open_garage() -> void:
+	_shade.visible = false
+	_menu_margin.visible = false
+	_visor_overlay.visible = false
+	_camera.h_offset = -0.4
+	_camera.v_offset = 0.2
+	_camera.fov = 34.0
+	_entity.loadout = Save.last_loadout().to_indices()
+	_garage.visible = true
+	_garage.refresh()
+
+
+func _close_garage() -> void:
+	_garage.visible = false
+	_shade.visible = true
+	_menu_margin.visible = true
+	_visor_overlay.visible = true
+	_camera.h_offset = -1.5
+	_camera.v_offset = 0.0
+	_camera.fov = 38.0
+	_buttons["garage"].grab_focus()
 
 
 func _open_settings() -> void:

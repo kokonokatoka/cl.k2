@@ -18,6 +18,7 @@ var camera: TopDownCamera
 var sampler: InputSampler
 var vision: VisionOverlay
 var hud: Hud
+var crosshair: DynamicCrosshair
 var overhead: OverheadLabels
 var pause_menu: PauseMenu
 var scoreboard: ScoreboardPanel
@@ -51,6 +52,15 @@ func _ready() -> void:
 	hud = Hud.new()
 	hud.name = "Hud"
 	add_child(hud)
+	
+	var crosshair_layer := CanvasLayer.new()
+	crosshair_layer.layer = 11
+	add_child(crosshair_layer)
+	crosshair = DynamicCrosshair.new()
+	crosshair.name = "Crosshair"
+	crosshair.theme = UiTheme.get_theme()
+	crosshair_layer.add_child(crosshair)
+
 	scoreboard = ScoreboardPanel.new()
 	scoreboard.name = "Scoreboard"
 	add_child(scoreboard)
@@ -69,6 +79,7 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	if not Cfg.is_headless():
+		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 		Input.set_custom_mouse_cursor(null)
 	Audio.stop_music()
 	if session != null:
@@ -86,7 +97,10 @@ func _process(delta: float) -> void:
 		_status_label.visible = true
 		return
 	_status_label.visible = false
-	sampler.enabled = not session.paused and not chat.is_typing() and not pause_menu.visible
+	var input_active := not session.paused and not chat.is_typing() and not pause_menu.visible
+	sampler.enabled = input_active
+	crosshair.visible = input_active and not Cfg.is_headless()
+
 	var frame := session.sample(Engine.get_physics_interpolation_fraction())
 	world_view.update_frame(frame, delta)
 	hud.update_frame(frame, delta)
@@ -95,6 +109,7 @@ func _process(delta: float) -> void:
 		camera.follow(frame.local.pos, look, delta)
 		var stats := session.local_player.stats
 		vision.update_vision(camera, frame.local.pos, stats.vision_range, stats.vision_tint, delta)
+		_update_crosshair(delta, frame)
 	overhead.update_frame(frame, camera)
 
 
@@ -104,6 +119,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_on_leave_requested()
 		return
 	if event.is_action_pressed("pause") and not pause_menu.visible:
+		if not Cfg.is_headless():
+			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 		pause_menu.open(session)
 		get_viewport().set_input_as_handled()
 		return
@@ -176,11 +193,16 @@ func _on_sim_event(event: SimEvent) -> void:
 		SimEvent.Type.SHOT:
 			if event.a == local_id:
 				camera.add_trauma(SHAKE_BY_WEAPON.get(event.tag, 0.05))
+				crosshair.trigger_recoil(1.0)
 		SimEvent.Type.HIT:
+			if event.a == local_id and event.b != local_id:
+				crosshair.trigger_hit(false)
 			if event.b == local_id and event.tag == &"player":
 				camera.add_trauma(0.4)
 				vision.flash_hit(minf(1.0, event.value / 25.0))
 		SimEvent.Type.KILL:
+			if event.a == local_id and event.b != local_id:
+				crosshair.trigger_hit(true)
 			if session.local_player != null and event.pos.distance_to(session.local_player.pos) < 14.0:
 				camera.add_trauma(0.3 if event.b == local_id else 0.14)
 		SimEvent.Type.LAND:
@@ -196,11 +218,15 @@ func _on_resumed() -> void:
 
 
 func _on_leave_requested() -> void:
+	if not Cfg.is_headless():
+		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 	Game.go_menu()
 
 
 ## サーバーに断られた・切れたとき: メッセージを持ってメニューへ戻る
 func _on_session_ended(reason: String) -> void:
+	if not Cfg.is_headless():
+		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 	if reason != "" and reason != "left":
 		var key := "net.error.%s" % reason
 		var text := tr(key)
@@ -221,23 +247,40 @@ func _build_status_label() -> void:
 	layer.add_child(_status_label)
 
 
-## 照準のカーソル（リング＋中心点）
+## 照準のカーソルを設定（OSマウスカーソルを隠し、ゲーム内DynamicCrosshairを有効化）
 func _set_crosshair_cursor() -> void:
-	var size := 32
-	var image := Image.create(size, size, false, Image.FORMAT_RGBA8)
-	var center := Vector2(size, size) * 0.5 - Vector2(0.5, 0.5)
-	for y in size:
-		for x in size:
-			var d := Vector2(x, y).distance_to(center)
-			var alpha := 0.0
-			if absf(d - 10.0) < 1.0:
-				alpha = 1.0
-			elif d < 1.6:
-				alpha = 1.0
-			elif absf(x - center.x) < 0.8 and d > 12.0 and d < 15.5:
-				alpha = 0.9
-			elif absf(y - center.y) < 0.8 and d > 12.0 and d < 15.5:
-				alpha = 0.9
-			if alpha > 0.0:
-				image.set_pixel(x, y, Color(1.0, 0.7, 0.3, alpha))
-	Input.set_custom_mouse_cursor(ImageTexture.create_from_image(image), Input.CURSOR_ARROW, Vector2(size, size) * 0.5)
+	Input.set_mouse_mode(Input.MOUSE_MODE_HIDDEN)
+
+
+func _update_crosshair(delta: float, frame: RenderFrame) -> void:
+	var aim_screen: Vector2 = Vector2.ZERO
+	if sampler.using_gamepad or Cfg.get_bool("autoplay"):
+		var forward := SimMath.forward(session.local_player.yaw)
+		var world_aim := session.local_player.pos + forward * 7.0
+		aim_screen = camera.unproject_position(world_aim)
+	else:
+		aim_screen = get_viewport().get_mouse_position()
+		if aim_screen.length_squared() < 4.0:
+			var ground_pos: Variant = sampler.aim_point_on_ground()
+			if ground_pos != null:
+				aim_screen = camera.unproject_position(ground_pos)
+			else:
+				var forward := SimMath.forward(session.local_player.yaw)
+				aim_screen = camera.unproject_position(session.local_player.pos + forward * 6.0)
+
+	# 敵への照準ロック判定
+	var is_locked := false
+	var target_dist := 0.0
+	var min_screen_dist := 48.0
+	for enemy in frame.enemies:
+		var ep := camera.unproject_position(enemy.pos + Vector3(0, 0.6, 0))
+		var d := ep.distance_to(aim_screen)
+		if d < min_screen_dist:
+			min_screen_dist = d
+			is_locked = true
+			target_dist = session.local_player.pos.distance_to(enemy.pos)
+
+	var p := session.local_player
+	var en_ratio := p.energy / maxf(1.0, p.stats.max_energy)
+	var cd_ratio := p.fire_cd / maxf(0.01, p.stats.fire_interval)
+	crosshair.update_crosshair(delta, aim_screen, is_locked, target_dist, en_ratio, cd_ratio)

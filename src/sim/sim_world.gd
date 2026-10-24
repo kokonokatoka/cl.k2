@@ -27,6 +27,13 @@ var events: Array[SimEvent] = []
 var rng: DetRng
 var spawn_enemies: bool = true
 
+## ウェーブシステム
+var wave_number: int = 1
+var wave_kills: int = 0
+var wave_target: int = 6
+var wave_interval: float = 0.0
+var boss_id: int = 0
+
 var _next_id: int = 1
 var _enemy_timer: float = 1.5
 ## 置き場所の番号 -> 再出現までの残り秒
@@ -179,11 +186,18 @@ func damage_enemy(enemy: SimEnemy, amount: float, attacker_id: int, at: Vector3)
 	if enemy.health > 0.0:
 		return
 	enemies.erase(enemy.id)
+	if enemy.id == boss_id:
+		boss_id = 0
 	var killer: SimPlayer = players.get(attacker_id)
 	if killer != null:
 		killer.score += enemy.def.score
 	add_event(SimEvent.make(SimEvent.Type.KILL, enemy.pos, attacker_id, enemy.id, enemy.def.score, enemy.def.id))
 	_drop_loot(enemy)
+
+	# ウェーブ進行
+	wave_kills += 1
+	if wave_kills >= wave_target:
+		_advance_wave()
 
 
 func spawn_enemy_at(def: EnemyDef, at: Vector3) -> SimEnemy:
@@ -355,7 +369,9 @@ func _collect(pk: SimPickup, p: SimPlayer) -> bool:
 
 
 func _step_spawners(dt: float) -> void:
-	if spawn_enemies and not players.is_empty():
+	if wave_interval > 0.0:
+		wave_interval = maxf(0.0, wave_interval - dt)
+	if spawn_enemies and not players.is_empty() and wave_interval <= 0.0:
 		_enemy_timer -= dt
 		var wanted := mini(rules.enemy_max, rules.enemy_base + rules.enemy_per_player * (players.size() - 1))
 		if _enemy_timer <= 0.0 and enemies.size() < wanted:
@@ -366,6 +382,30 @@ func _step_spawners(dt: float) -> void:
 		if _spot_timers[spot] <= 0.0:
 			_spot_timers.erase(spot)
 			_spawn_world_pickup(spot)
+
+
+func _advance_wave() -> void:
+	wave_number += 1
+	wave_kills = 0
+	wave_target = 6 + wave_number * 3
+	wave_interval = 4.0
+	for p: SimPlayer in players.values():
+		if p.alive:
+			p.health = minf(p.stats.max_health, p.health + 35.0)
+			p.energy = minf(p.stats.max_energy, p.energy + 45.0)
+	# Wave 3 または 3 の倍数でボス出現
+	if wave_number % 3 == 0:
+		_spawn_boss()
+
+
+func _spawn_boss() -> void:
+	var def := Content.enemy(&"brute")
+	if def == null:
+		return
+	var point := geometry.enemy_spawns[0] if not geometry.enemy_spawns.is_empty() else Vector3(0, 0, 8.0)
+	var boss := spawn_enemy_at(def, point)
+	boss.health = def.max_health * 3.0
+	boss_id = boss.id
 
 
 func _spawn_random_enemy() -> void:

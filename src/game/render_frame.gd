@@ -34,3 +34,10 @@ var enemies: Array[Entity] = []
 var projectiles: Array[Entity] = []
 var pickups: Array[Entity] = []
 var local: Entity = null
+
+## ウェーブ進行 ＆ ボス情報
+var wave_number: int = 1
+var wave_kills: int = 0
+var wave_target: int = 6
+var boss_id: int = 0
+var boss_health_fraction: float = 0.0

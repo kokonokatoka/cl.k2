@@ -35,6 +35,13 @@ var _danger_frame: Panel
 var _last_low_health_warn: float = 0.0
 var _ping_visible: bool = false
 
+var _wave_label: Label
+var _wave_banner: Label
+var _wave_sub: Label
+var _boss_panel: PanelContainer
+var _boss_bar: ProgressBar
+var _last_wave: int = 1
+
 
 func _ready() -> void:
 	layer = 10
@@ -58,6 +65,7 @@ func _ready() -> void:
 	_build_top_right()
 	_build_radar()
 	_build_notifications()
+	_build_wave_ui()
 	_build_death_label()
 	_retranslate()
 
@@ -90,6 +98,19 @@ func update_frame(frame: RenderFrame, delta: float) -> void:
 		_ping_label.text = "PING: %d ms" % session.ping_ms()
 	
 	_radar.update_frame(frame, stats.vision_range)
+
+	# ウェーブ情報更新
+	if frame.wave_number != _last_wave:
+		_on_wave_advanced(frame.wave_number)
+		_last_wave = frame.wave_number
+	_wave_label.text = "WAVE %02d // TARGETS: %02d / %02d" % [frame.wave_number, frame.wave_kills, frame.wave_target]
+
+	# ボスHPバー更新
+	if frame.boss_id > 0:
+		_boss_panel.visible = true
+		_boss_bar.value = frame.boss_health_fraction * 100.0
+	else:
+		_boss_panel.visible = false
 
 	_death_label.visible = not p.alive
 	if not p.alive:
@@ -462,6 +483,108 @@ func _build_notifications() -> void:
 	_toasts.custom_minimum_size = Vector2(440, 0)
 	_toasts.add_theme_constant_override("separation", 6)
 	anchor.add_child(_toasts)
+
+
+func _build_wave_ui() -> void:
+	# 1. 上部中央のウェーブ情報タグ
+	var wave_tag_panel := PanelContainer.new()
+	wave_tag_panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	wave_tag_panel.position = Vector2(-150, 16)
+	wave_tag_panel.custom_minimum_size = Vector2(300, 28)
+	var tag_style := StyleBoxFlat.new()
+	tag_style.bg_color = Color(0.02, 0.04, 0.08, 0.88)
+	tag_style.border_width_bottom = 2
+	tag_style.border_color = Color(0.2, 0.85, 1.0)
+	tag_style.content_margin_left = 12
+	tag_style.content_margin_right = 12
+	tag_style.content_margin_top = 4
+	tag_style.content_margin_bottom = 4
+	wave_tag_panel.add_theme_stylebox_override("panel", tag_style)
+	_root.add_child(wave_tag_panel)
+
+	_wave_label = Label.new()
+	_wave_label.text = "WAVE 01 // TARGETS: 00 / 06"
+	_wave_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_wave_label.add_theme_font_size_override("font_size", 12)
+	_wave_label.add_theme_color_override("font_color", Color(0.3, 0.9, 1.0))
+	wave_tag_panel.add_child(_wave_label)
+
+	# 2. ボスHPバー（画面最上部）
+	_boss_panel = PanelContainer.new()
+	_boss_panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_boss_panel.position = Vector2(-260, 48)
+	_boss_panel.custom_minimum_size = Vector2(520, 36)
+	var boss_style := StyleBoxFlat.new()
+	boss_style.bg_color = Color(0.06, 0.02, 0.03, 0.92)
+	boss_style.border_width_left = 3
+	boss_style.border_width_right = 3
+	boss_style.border_width_bottom = 1
+	boss_style.border_color = Color(1.0, 0.25, 0.25)
+	boss_style.content_margin_left = 14
+	boss_style.content_margin_right = 14
+	boss_style.content_margin_top = 6
+	boss_style.content_margin_bottom = 6
+	_boss_panel.add_theme_stylebox_override("panel", boss_style)
+	_boss_panel.visible = false
+	_root.add_child(_boss_panel)
+
+	var boss_v := VBoxContainer.new()
+	boss_v.add_theme_constant_override("separation", 4)
+	_boss_panel.add_child(boss_v)
+
+	var boss_lbl := Label.new()
+	boss_lbl.text = "HOSTILE TITAN // GIGAS BRUTE [THREAT: CRITICAL]"
+	boss_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	boss_lbl.add_theme_font_size_override("font_size", 11)
+	boss_lbl.add_theme_color_override("font_color", Color(1.0, 0.4, 0.4))
+	boss_v.add_child(boss_lbl)
+
+	_boss_bar = ProgressBar.new()
+	_boss_bar.custom_minimum_size.y = 8
+	_boss_bar.max_value = 100.0
+	_boss_bar.value = 100.0
+	_boss_bar.show_percentage = false
+	var bar_fill := StyleBoxFlat.new()
+	bar_fill.bg_color = Color(1.0, 0.2, 0.25)
+	_boss_bar.add_theme_stylebox_override("fill", bar_fill)
+	boss_v.add_child(_boss_bar)
+
+	# 3. 画面中央の大迫力ウェーブ通知バナー
+	_wave_banner = Label.new()
+	_wave_banner.set_anchors_preset(Control.PRESET_CENTER)
+	_wave_banner.position = Vector2(-400, -110)
+	_wave_banner.custom_minimum_size = Vector2(800, 50)
+	_wave_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_wave_banner.add_theme_font_size_override("font_size", 38)
+	_wave_banner.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	_wave_banner.add_theme_constant_override("outline_size", 8)
+	_wave_banner.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+	_wave_banner.modulate.a = 0.0
+	_root.add_child(_wave_banner)
+
+	_wave_sub = Label.new()
+	_wave_sub.set_anchors_preset(Control.PRESET_CENTER)
+	_wave_sub.position = Vector2(-400, -60)
+	_wave_sub.custom_minimum_size = Vector2(800, 30)
+	_wave_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_wave_sub.add_theme_font_size_override("font_size", 16)
+	_wave_sub.add_theme_color_override("font_color", Color(0.3, 0.9, 1.0))
+	_wave_sub.add_theme_constant_override("outline_size", 4)
+	_wave_sub.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+	_wave_sub.modulate.a = 0.0
+	_root.add_child(_wave_sub)
+
+
+func _on_wave_advanced(wave: int) -> void:
+	Audio.play_ui(&"ui_confirm")
+	_wave_banner.text = ">> WAVE %02d COMMENCING <<" % wave
+	_wave_sub.text = "ELIMINATE HOSTILE COMBAT UNITS" if wave % 3 != 0 else "! WARNING: HOSTILE TITAN INCOMING !"
+	_wave_banner.modulate.a = 1.0
+	_wave_sub.modulate.a = 1.0
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(_wave_banner, "modulate:a", 0.0, 2.5).set_ease(Tween.EASE_IN)
+	tween.tween_property(_wave_sub, "modulate:a", 0.0, 2.8).set_ease(Tween.EASE_IN)
 
 
 func _build_death_label() -> void:
