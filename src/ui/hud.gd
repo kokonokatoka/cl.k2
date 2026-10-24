@@ -1,9 +1,12 @@
 class_name Hud
 extends CanvasLayer
-## ゲーム中の HUD。パーツ換装パネル、体力・エネルギー、スコア、レーダー、通知、キルフィード、死亡表示。
-## 状態は持たず、毎フレーム session から読んで表示するだけ。
+## AAAサイバーミリタリーHUD。
+## アーマード・コアやサイバーパンク調のホログラフィック・タクティカルバイザー仕様。
+## 四隅のコーナーブラケット、斜角パーツ換装パネル、セグメントスラントゲージ、
+## 円形ソナーレーダー、戦績デジタルディスプレイを完全統合。
 
 const SLOTS: Array[RobotPart.Slot] = [RobotPart.Slot.EYES, RobotPart.Slot.LEGS, RobotPart.Slot.ARMS, RobotPart.Slot.CORE]
+const SLOT_KEYS: Array[String] = ["[1]", "[2]", "[3]", "[4]"]
 const TOAST_SECONDS := 3.5
 const FEED_SECONDS := 6.0
 const MAX_TOASTS := 4
@@ -12,15 +15,16 @@ const MAX_FEED := 5
 var session: GameSession
 
 var _root: Control
+var _visor_overlay: Control
 var _name_labels: Dictionary = {}
 var _slot_titles: Dictionary = {}
 var _chips: Dictionary = {}
 var _stats_label: Label
 var _title_label: Label
-var _controls_label: Label
 var _health_bar: StatBar
 var _energy_bar: StatBar
 var _weapon_label: Label
+var _boost_label: Label
 var _score_label: Label
 var _ping_label: Label
 var _radar: Radar
@@ -39,6 +43,15 @@ func _ready() -> void:
 	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_root)
+
+	# 1. 画面四隅のバイザーフレーム
+	_visor_overlay = Control.new()
+	_visor_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_visor_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_visor_overlay.draw.connect(_draw_visor_brackets)
+	_root.add_child(_visor_overlay)
+
+	# 2. 各種HUD要素
 	_build_danger_frame()
 	_build_parts_panel()
 	_build_status_bars()
@@ -71,29 +84,29 @@ func update_frame(frame: RenderFrame, delta: float) -> void:
 	_energy_bar.set_values(p.energy, stats.max_energy)
 	_update_parts_panel(p)
 	_update_weapon_label(p)
-	_score_label.text = "%s %d    %s %d    %s %d" % [
-		tr("hud.score"), p.score, tr("hud.kills"), p.kills, tr("hud.deaths"), p.deaths]
+	
+	_score_label.text = "SCORE: %05d   KILLS: %02d   LOSS: %02d" % [p.score, p.kills, p.deaths]
 	if _ping_visible:
-		_ping_label.text = tr("hud.ping") % session.ping_ms()
+		_ping_label.text = "PING: %d ms" % session.ping_ms()
+	
 	_radar.update_frame(frame, stats.vision_range)
 
 	_death_label.visible = not p.alive
 	if not p.alive:
 		_death_label.text = "%s\n%s" % [tr("hud.eliminated"), tr("hud.respawn_in") % maxf(p.respawn_timer, 0.0)]
 
-	# 体力が少ないと画面の縁が赤く脈打つ
+	# 低HP警告パルス
 	var health_ratio := p.health / maxf(stats.max_health, 1.0)
 	var pulse := 0.0
-	if p.alive and health_ratio < 0.3:
-		pulse = (0.5 + 0.5 * sin(Time.get_ticks_msec() / 160.0)) * (1.0 - health_ratio / 0.3)
+	if p.alive and health_ratio < 0.28:
+		pulse = (0.5 + 0.5 * sin(Time.get_ticks_msec() / 150.0)) * (1.0 - health_ratio / 0.28)
 		_last_low_health_warn -= delta
 		if _last_low_health_warn <= 0.0:
-			_last_low_health_warn = 1.1
-			Audio.play_ui(&"low_health", -6.0)
-	_danger_frame.modulate.a = lerpf(_danger_frame.modulate.a, pulse, minf(1.0, delta * 10.0))
+			_last_low_health_warn = 1.0
+			Audio.play_ui(&"low_health", -5.0)
+	_danger_frame.modulate.a = lerpf(_danger_frame.modulate.a, pulse, minf(1.0, delta * 12.0))
 
 
-## シミュレーションのイベントから、通知とキルフィードを出す
 func handle_event(event: SimEvent) -> void:
 	if session == null:
 		return
@@ -106,35 +119,49 @@ func handle_event(event: SimEvent) -> void:
 				var text := (tr("toast.new_part") if event.value > 0.5 else tr("toast.duplicate_part")) % part.get_title()
 				toast(text, Events.ToastKind.GOOD, part.get_rarity_color())
 			elif event.tag == &"health":
-				toast(tr("toast.health"), Events.ToastKind.GOOD)
+				toast("REPAIR +AP // 装甲修復", Events.ToastKind.GOOD)
 			elif event.tag == &"energy":
-				toast(tr("toast.energy"), Events.ToastKind.GOOD)
+				toast("ENERGY CELL +EN // 出力補給", Events.ToastKind.GOOD)
 		SimEvent.Type.KILL:
 			_add_feed_line(event)
 
 
 func toast(text: String, kind: int = Events.ToastKind.INFO, color_override: Color = Color(0, 0, 0, 0)) -> void:
+	var container := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.03, 0.05, 0.09, 0.92)
+	style.border_width_left = 3
+	style.border_color = Color(0.2, 0.8, 1.0)
+	style.content_margin_left = 14
+	style.content_margin_right = 14
+	style.content_margin_top = 6
+	style.content_margin_bottom = 6
+	container.add_theme_stylebox_override("panel", style)
+
 	var label := Label.new()
 	label.text = text
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 20)
-	label.add_theme_constant_override("outline_size", 6)
+	label.add_theme_font_size_override("font_size", 16)
+	
 	var color := color_override
 	if color.a == 0.0:
 		match kind:
-			Events.ToastKind.GOOD: color = UiTheme.GOOD
-			Events.ToastKind.WARN: color = UiTheme.ACCENT
-			Events.ToastKind.BAD: color = UiTheme.BAD
-			_: color = UiTheme.TEXT
+			Events.ToastKind.GOOD: color = Color(0.3, 0.95, 0.6)
+			Events.ToastKind.WARN: color = Color(1.0, 0.7, 0.2)
+			Events.ToastKind.BAD: color = Color(1.0, 0.35, 0.35)
+			_: color = Color(0.9, 0.95, 1.0)
 	label.add_theme_color_override("font_color", color)
-	_toasts.add_child(label)
+	container.add_child(label)
+
+	_toasts.add_child(container)
 	while _toasts.get_child_count() > MAX_TOASTS:
 		_toasts.get_child(0).queue_free()
 		_toasts.remove_child(_toasts.get_child(0))
+	
 	var tween := create_tween()
 	tween.tween_interval(TOAST_SECONDS)
-	tween.tween_property(label, "modulate:a", 0.0, 0.5)
-	tween.tween_callback(label.queue_free)
+	tween.tween_property(container, "modulate:a", 0.0, 0.5)
+	tween.tween_callback(container.queue_free)
 
 
 func _add_feed_line(event: SimEvent) -> void:
@@ -144,78 +171,182 @@ func _add_feed_line(event: SimEvent) -> void:
 	else:
 		var def := Content.enemy(event.tag)
 		victim = def.get_title() if def != null else "?"
+	
 	var text := ""
 	if event.a != 0:
-		text = tr("feed.kill") % [session.player_name(event.a), victim]
+		text = "%s  ▶▶  %s" % [session.player_name(event.a), victim]
 	elif event.tag == &"player":
-		text = tr("feed.destroyed") % victim
+		text = "TERMINATED // %s" % victim
 	else:
 		return
+	
 	var label := Label.new()
 	label.text = text
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	var involves_local := event.a == session.local_id or (event.tag == &"player" and event.b == session.local_id)
-	label.add_theme_color_override("font_color", UiTheme.ACCENT if involves_local else UiTheme.TEXT_DIM)
-	label.add_theme_constant_override("outline_size", 5)
+	label.add_theme_color_override("font_color", Color(1.0, 0.65, 0.2) if involves_local else Color(0.65, 0.75, 0.85, 0.8))
+	label.add_theme_font_size_override("font_size", 13)
 	_feed.add_child(label)
+	
 	while _feed.get_child_count() > MAX_FEED:
 		var oldest := _feed.get_child(0)
 		_feed.remove_child(oldest)
 		oldest.queue_free()
+	
 	var tween := create_tween()
 	tween.tween_interval(FEED_SECONDS)
 	tween.tween_property(label, "modulate:a", 0.0, 0.6)
 	tween.tween_callback(label.queue_free)
 
 
-# --- 組み立て ---
+# --- 画面四隅のホログラフィック・バイザーフレーム ---
+
+func _draw_visor_brackets() -> void:
+	var w := _visor_overlay.size.x
+	var h := _visor_overlay.size.y
+	var margin := 16.0
+	var len := 36.0
+	var c := Color(0.18, 0.45, 0.65, 0.5)
+	var c_bright := Color(0.3, 0.85, 1.0, 0.8)
+
+	# 左上ブラケット
+	_visor_overlay.draw_line(Vector2(margin, margin + len), Vector2(margin, margin), c, 1.5)
+	_visor_overlay.draw_line(Vector2(margin, margin), Vector2(margin + len, margin), c, 1.5)
+	_visor_overlay.draw_line(Vector2(margin, margin), Vector2(margin + 6, margin + 6), c_bright, 2.0)
+
+	# 右上ブラケット
+	_visor_overlay.draw_line(Vector2(w - margin - len, margin), Vector2(w - margin, margin), c, 1.5)
+	_visor_overlay.draw_line(Vector2(w - margin, margin), Vector2(w - margin, margin + len), c, 1.5)
+	_visor_overlay.draw_line(Vector2(w - margin, margin), Vector2(w - margin - 6, margin + 6), c_bright, 2.0)
+
+	# 左下ブラケット
+	_visor_overlay.draw_line(Vector2(margin, h - margin - len), Vector2(margin, h - margin), c, 1.5)
+	_visor_overlay.draw_line(Vector2(margin, h - margin), Vector2(margin + len, h - margin), c, 1.5)
+	_visor_overlay.draw_line(Vector2(margin, h - margin), Vector2(margin + 6, h - margin - 6), c_bright, 2.0)
+
+	# 右下ブラケット
+	_visor_overlay.draw_line(Vector2(w - margin - len, h - margin), Vector2(w - margin, h - margin), c, 1.5)
+	_visor_overlay.draw_line(Vector2(w - margin, h - margin - len), Vector2(w - margin, h - margin), c, 1.5)
+	_visor_overlay.draw_line(Vector2(w - margin, h - margin), Vector2(w - margin - 6, h - margin - 6), c_bright, 2.0)
+
+	# 左下の操作ガイド（洗練されたミリタリーフッター）
+	var font := _visor_overlay.get_theme_default_font()
+	var footer := "WASD MANEUVER  |  MOUSE AIM  |  LMB FIRE  |  SHIFT BOOST  |  SPACE JUMP  |  [1-4] RE-ARM  |  TAB INTEL"
+	_visor_overlay.draw_string(font, Vector2(margin + 18, h - margin - 6), footer, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(0.4, 0.6, 0.75, 0.65))
+
+
+# --- UIコンポーネント組み立て ---
 
 func _build_parts_panel() -> void:
 	var panel := PanelContainer.new()
-	panel.position = Vector2(16, 16)
+	panel.position = Vector2(24, 24)
 	_root.add_child(panel)
+
+	# ハイテクサイバーパネル
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.02, 0.035, 0.06, 0.88)
+	style.border_width_left = 2
+	style.border_width_top = 1
+	style.border_width_right = 1
+	style.border_width_bottom = 1
+	style.border_color = Color(0.18, 0.45, 0.65, 0.7)
+	style.content_margin_left = 14
+	style.content_margin_right = 14
+	style.content_margin_top = 10
+	style.content_margin_bottom = 10
+	panel.add_theme_stylebox_override("panel", style)
+
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 6)
 	panel.add_child(box)
 
-	_title_label = Label.new()
-	_title_label.add_theme_font_size_override("font_size", 18)
-	_title_label.add_theme_color_override("font_color", UiTheme.ACCENT)
-	box.add_child(_title_label)
+	var header_hbox := HBoxContainer.new()
+	box.add_child(header_hbox)
 
-	for slot in SLOTS:
+	var led := ColorRect.new()
+	led.color = Color(0.2, 0.9, 1.0)
+	led.custom_minimum_size = Vector2(4, 14)
+	header_hbox.add_child(led)
+
+	_title_label = Label.new()
+	_title_label.text = "CHASSIS SPEC // 機体装備"
+	_title_label.add_theme_font_size_override("font_size", 13)
+	_title_label.add_theme_color_override("font_color", Color(0.3, 0.85, 1.0))
+	header_hbox.add_child(_title_label)
+
+	for i in range(SLOTS.size()):
+		var slot := SLOTS[i]
+		var key_str := SLOT_KEYS[i]
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 6)
+
+		# キーバッジ [1] - [4]
+		var key_label := Label.new()
+		key_label.text = key_str
+		key_label.custom_minimum_size.x = 22
+		key_label.add_theme_font_size_override("font_size", 11)
+		key_label.add_theme_color_override("font_color", Color(0.95, 0.65, 0.15))
+		row.add_child(key_label)
+
+		# レアリティLED
 		var chip := ColorRect.new()
-		chip.custom_minimum_size = Vector2(5, 24)
+		chip.custom_minimum_size = Vector2(3, 22)
 		row.add_child(chip)
 		_chips[slot] = chip
+
 		var title := Label.new()
-		title.custom_minimum_size.x = 52
+		title.custom_minimum_size.x = 64
+		title.add_theme_font_size_override("font_size", 12)
+		title.add_theme_color_override("font_color", Color(0.7, 0.8, 0.9))
 		row.add_child(title)
 		_slot_titles[slot] = title
-		row.add_child(_arrow_button("<", slot, -1))
+
+		row.add_child(_arrow_button("◀", slot, -1))
+
 		var name_label := Label.new()
-		name_label.custom_minimum_size.x = 170
+		name_label.custom_minimum_size.x = 160
 		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		name_label.clip_text = true
+		name_label.add_theme_font_size_override("font_size", 13)
 		row.add_child(name_label)
 		_name_labels[slot] = name_label
-		row.add_child(_arrow_button(">", slot, 1))
+
+		row.add_child(_arrow_button("▶", slot, 1))
 		box.add_child(row)
 
-	box.add_child(HSeparator.new())
+	var sep := HSeparator.new()
+	var sep_style := StyleBoxLine.new()
+	sep_style.color = Color(0.18, 0.35, 0.5, 0.5)
+	sep.add_theme_stylebox_override("separator", sep_style)
+	box.add_child(sep)
+
 	_stats_label = Label.new()
-	_stats_label.add_theme_font_size_override("font_size", 14)
+	_stats_label.add_theme_font_size_override("font_size", 11)
+	_stats_label.add_theme_color_override("font_color", Color(0.65, 0.8, 0.9, 0.9))
 	box.add_child(_stats_label)
 
 
 func _arrow_button(text: String, slot: RobotPart.Slot, step: int) -> Button:
 	var button := Button.new()
 	button.text = text
-	# フォーカスを持たせない（Space キーでボタンが押されてしまうのを防ぐ）
 	button.focus_mode = Control.FOCUS_NONE
-	button.custom_minimum_size = Vector2(30, 0)
+	button.custom_minimum_size = Vector2(24, 22)
+	
+	var btn_style := StyleBoxFlat.new()
+	btn_style.bg_color = Color(0.08, 0.12, 0.18, 0.9)
+	btn_style.border_width_left = 1
+	btn_style.border_width_top = 1
+	btn_style.border_width_right = 1
+	btn_style.border_width_bottom = 1
+	btn_style.border_color = Color(0.2, 0.4, 0.6, 0.6)
+	btn_style.set_corner_radius_all(2)
+	button.add_theme_stylebox_override("normal", btn_style)
+	
+	var hover_style := btn_style.duplicate() as StyleBoxFlat
+	hover_style.bg_color = Color(0.15, 0.25, 0.4, 0.95)
+	hover_style.border_color = Color(0.3, 0.85, 1.0, 0.9)
+	button.add_theme_stylebox_override("hover", hover_style)
+
 	button.pressed.connect(func() -> void:
 		if session != null:
 			session.cycle_slot(slot, step)
@@ -226,80 +357,121 @@ func _arrow_button(text: String, slot: RobotPart.Slot, step: int) -> Button:
 func _build_status_bars() -> void:
 	var anchor := Control.new()
 	anchor.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
-	anchor.position.y -= 24
+	anchor.position.y -= 20
 	_root.add_child(anchor)
+
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 4)
-	box.position = Vector2(-150, -86)
+	box.add_theme_constant_override("separation", 5)
+	box.position = Vector2(-170, -96)
 	anchor.add_child(box)
+
+	# AP 装甲耐久ゲージ（レッド/クリムゾン）
 	_health_bar = StatBar.new()
-	_health_bar.fill_color = UiTheme.HEALTH
-	_health_bar.custom_minimum_size = Vector2(300, 24)
+	_health_bar.fill_color = Color(1.0, 0.25, 0.35)
+	_health_bar.label_text = "AP // ARMOR"
+	_health_bar.is_health = true
+	_health_bar.custom_minimum_size = Vector2(340, 24)
 	box.add_child(_health_bar)
+
+	# EN エネルギー出力ゲージ（シアン/エレクトリックブルー）
 	_energy_bar = StatBar.new()
-	_energy_bar.fill_color = UiTheme.ENERGY
-	_energy_bar.custom_minimum_size = Vector2(300, 20)
+	_energy_bar.fill_color = Color(0.15, 0.85, 1.0)
+	_energy_bar.label_text = "EN // REACTOR"
+	_energy_bar.is_health = false
+	_energy_bar.custom_minimum_size = Vector2(340, 20)
 	box.add_child(_energy_bar)
+
+	var sub_hbox := HBoxContainer.new()
+	sub_hbox.custom_minimum_size.x = 340
+	box.add_child(sub_hbox)
+
 	_weapon_label = Label.new()
-	_weapon_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_weapon_label.add_theme_font_size_override("font_size", 13)
-	_weapon_label.add_theme_color_override("font_color", UiTheme.TEXT)
-	box.add_child(_weapon_label)
+	_weapon_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_weapon_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_weapon_label.add_theme_font_size_override("font_size", 11)
+	_weapon_label.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))
+	sub_hbox.add_child(_weapon_label)
+
+	_boost_label = Label.new()
+	_boost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_boost_label.add_theme_font_size_override("font_size", 11)
+	_boost_label.add_theme_color_override("font_color", Color(0.2, 0.95, 0.5))
+	sub_hbox.add_child(_boost_label)
 
 
 func _build_top_right() -> void:
 	var box := VBoxContainer.new()
 	box.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	box.position = Vector2(-340, 16)
-	box.custom_minimum_size = Vector2(324, 0)
+	box.position = Vector2(-360, 24)
+	box.custom_minimum_size = Vector2(336, 0)
 	_root.add_child(box)
+
 	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.02, 0.035, 0.06, 0.88)
+	style.border_width_right = 2
+	style.border_width_top = 1
+	style.border_width_left = 1
+	style.border_width_bottom = 1
+	style.border_color = Color(0.18, 0.45, 0.65, 0.7)
+	style.content_margin_left = 12
+	style.content_margin_right = 12
+	style.content_margin_top = 8
+	style.content_margin_bottom = 8
+	panel.add_theme_stylebox_override("panel", style)
 	box.add_child(panel)
+
+	var inner_box := VBoxContainer.new()
+	inner_box.add_theme_constant_override("separation", 2)
+	panel.add_child(inner_box)
+
 	_score_label = Label.new()
 	_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_score_label.add_theme_font_size_override("font_size", 16)
-	panel.add_child(_score_label)
+	_score_label.add_theme_font_size_override("font_size", 14)
+	_score_label.add_theme_color_override("font_color", Color(0.3, 0.9, 1.0))
+	inner_box.add_child(_score_label)
+
 	_ping_label = Label.new()
 	_ping_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_ping_label.add_theme_font_size_override("font_size", 12)
-	_ping_label.add_theme_color_override("font_color", UiTheme.TEXT_DIM)
-	_ping_label.visible = false
-	box.add_child(_ping_label)
+	_ping_label.add_theme_font_size_override("font_size", 10)
+	_ping_label.add_theme_color_override("font_color", Color(0.5, 0.65, 0.8, 0.7))
+	inner_box.add_child(_ping_label)
+
 	_feed = VBoxContainer.new()
-	_feed.add_theme_constant_override("separation", 2)
+	_feed.add_theme_constant_override("separation", 3)
 	box.add_child(_feed)
 
 
 func _build_radar() -> void:
+	var anchor := Control.new()
+	anchor.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	anchor.position = Vector2(-204, -204)
+	_root.add_child(anchor)
 	_radar = Radar.new()
-	_radar.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
-	_radar.position = Vector2(-Radar.SIZE - 16, -Radar.SIZE - 16)
-	_root.add_child(_radar)
-	_controls_label = Label.new()
-	_controls_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-	_controls_label.position = Vector2(16, -32)
-	_controls_label.add_theme_font_size_override("font_size", 12)
-	_controls_label.add_theme_color_override("font_color", UiTheme.TEXT_DIM)
-	_root.add_child(_controls_label)
+	anchor.add_child(_radar)
 
 
 func _build_notifications() -> void:
+	var anchor := Control.new()
+	anchor.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	anchor.position.y += 45
+	_root.add_child(anchor)
+
 	_toasts = VBoxContainer.new()
-	_toasts.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-	_toasts.position = Vector2(-220, 70)
+	_toasts.position = Vector2(-220, 0)
 	_toasts.custom_minimum_size = Vector2(440, 0)
-	_toasts.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_root.add_child(_toasts)
+	_toasts.add_theme_constant_override("separation", 6)
+	anchor.add_child(_toasts)
 
 
 func _build_death_label() -> void:
 	_death_label = Label.new()
-	_death_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_death_label.set_anchors_preset(Control.PRESET_CENTER)
 	_death_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_death_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_death_label.add_theme_font_size_override("font_size", 34)
-	_death_label.add_theme_color_override("font_color", Color(1, 0.35, 0.3))
-	_death_label.add_theme_constant_override("outline_size", 10)
+	_death_label.add_theme_color_override("font_color", Color(1.0, 0.25, 0.35))
+	_death_label.add_theme_constant_override("outline_size", 8)
+	_death_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
 	_death_label.visible = false
 	_root.add_child(_death_label)
 
@@ -309,47 +481,53 @@ func _build_danger_frame() -> void:
 	_danger_frame.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_danger_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0, 0, 0, 0)
-	style.border_color = Color(1, 0.1, 0.1, 0.8)
-	style.set_border_width_all(10)
+	style.bg_color = Color(1.0, 0.1, 0.2, 0.2)
+	style.border_width_left = 18
+	style.border_width_top = 18
+	style.border_width_right = 18
+	style.border_width_bottom = 18
+	style.border_color = Color(1.0, 0.1, 0.2, 0.8)
 	_danger_frame.add_theme_stylebox_override("panel", style)
 	_danger_frame.modulate.a = 0.0
 	_root.add_child(_danger_frame)
 
 
-# --- 更新 ---
-
 func _update_parts_panel(p: SimPlayer) -> void:
 	for slot in SLOTS:
 		var part := p.loadout.get_part(slot)
 		var label: Label = _name_labels[slot]
-		label.text = part.get_title() if part != null else tr("hud.none")
-		label.add_theme_color_override("font_color", part.get_rarity_color() if part != null else UiTheme.TEXT_DIM)
-		(_chips[slot] as ColorRect).color = part.accent if part != null else Color(0.25, 0.27, 0.32)
+		var chip: ColorRect = _chips[slot]
+		if part != null:
+			label.text = part.get_title()
+			label.add_theme_color_override("font_color", part.get_rarity_color())
+			chip.color = part.get_rarity_color()
+		else:
+			label.text = "-- EMPTY --"
+			label.add_theme_color_override("font_color", Color(0.4, 0.45, 0.55))
+			chip.color = Color(0.2, 0.25, 0.35)
+
 	var s := p.stats
-	var jump := "%.1f" % s.jump_velocity if s.jump_velocity > 0.0 else tr("hud.cannot_jump")
-	var vision := "%.0f m" % s.vision_range if s.vision_range > 0.0 else tr("hud.blind")
-	var damage := "%.0f" % s.weapon_damage if s.can_fire() else tr("hud.unarmed")
-	if s.can_fire() and s.pellets > 1:
-		damage += " x%d" % s.pellets
-	_stats_label.text = "%s %.1f   %s %s\n%s %s   %s %s" % [
-		tr("hud.stat.speed"), s.move_speed, tr("hud.stat.jump"), jump,
-		tr("hud.stat.vision"), vision, tr("hud.stat.damage"), damage]
+	var jmp := "NO" if s.jump_velocity <= 0.001 else ("%.1f" % s.jump_velocity)
+	var vis := "BLIND" if s.vision_range <= 0.001 else ("%.1fm" % s.vision_range)
+	var dmg := "NONE" if s.weapon_damage <= 0.001 else ("%d" % roundi(s.weapon_damage))
+	_stats_label.text = "SPD: %4.1f  |  JMP: %s\nVIS: %5s  |  ATK: %s" % [s.move_speed, jmp, vis, dmg]
 
 
 func _update_weapon_label(p: SimPlayer) -> void:
-	var part := p.loadout.get_part(RobotPart.Slot.ARMS)
-	if part == null:
-		_weapon_label.text = tr("hud.unarmed")
-		return
-	var dash_state := tr("hud.dash_ready") if p.stats.can_dash() and p.dash_cd <= 0.0 and p.energy >= p.stats.dash_cost else tr("hud.dash_wait")
-	_weapon_label.text = "%s    %s %s" % [part.get_title(), tr("hud.stat.dash"), dash_state]
+	var w_name := p.stats.weapon_kind.to_upper()
+	if w_name == "": w_name = "UNARMED"
+	_weapon_label.text = "[LMB] %s" % w_name
+
+	if p.dash_cd <= 0.0:
+		_boost_label.text = "[SHIFT] BOOST // READY"
+		_boost_label.add_theme_color_override("font_color", Color(0.2, 0.95, 0.5))
+	else:
+		_boost_label.text = "[SHIFT] BOOST // %.1fs" % p.dash_cd
+		_boost_label.add_theme_color_override("font_color", Color(0.5, 0.6, 0.7))
 
 
 func _retranslate() -> void:
-	_title_label.text = tr("hud.parts")
-	for slot in SLOTS:
-		(_slot_titles[slot] as Label).text = tr("slot.%s" % RobotPart.slot_key(slot))
-	_health_bar.label_text = tr("hud.health")
-	_energy_bar.label_text = tr("hud.energy")
-	_controls_label.text = tr("hud.controls")
+	_slot_titles[RobotPart.Slot.EYES].text = "OPTICS"
+	_slot_titles[RobotPart.Slot.LEGS].text = "CHASSIS"
+	_slot_titles[RobotPart.Slot.ARMS].text = "ARMAMENT"
+	_slot_titles[RobotPart.Slot.CORE].text = "REACTOR"
