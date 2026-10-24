@@ -310,9 +310,17 @@ func _create_local_player(snapshot: SnapshotCodec.Snapshot) -> void:
 	local_player.id = local_id
 	local_player.player_name = display_name
 	local_player.team = local_id
+	local_player.pos = snapshot.own.pos
+	local_player.prev_pos = snapshot.own.pos
+	local_player.yaw = snapshot.own.yaw
+	local_player.prev_yaw = snapshot.own.yaw
 	local_player.set_loadout(Loadout.from_indices(snapshot.own_loadout))
 	reconciler = Reconciler.new(local_player, geometry)
 	reconciler.apply_authoritative(snapshot.own, snapshot.ack_seq)
+	reconciler.max_error = 0.0
+	reconciler.snaps = 0
+	reconciler.corrections = 0
+	reconciler.view_offset = Vector3.ZERO
 	local_player.prev_pos = local_player.pos
 	local_player.prev_yaw = local_player.yaw
 	phase = Phase.PLAYING

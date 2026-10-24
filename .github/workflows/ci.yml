@@ -1,0 +1,29 @@
+name: CI Test Suite
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Godot Cache
+        run: |
+          mkdir -v -p ~/.local/share/godot/builds
+          mkdir -v -p ~/.config/godot
+
+      - name: Import Assets & Build Class Cache
+        run: |
+          godot --headless --verbose --import --path .
+
+      - name: Run Full Test Suite
+        run: |
+          godot --headless --path . -s res://tests/run_tests.gd

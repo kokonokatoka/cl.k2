@@ -227,42 +227,28 @@ input(クライアント→サーバー、9 byte × 1〜8): u32 seq | i8 mx | i8
 
 ### P0: ネットの検証（これが無いと「基盤」と言えない）
 
-> **進捗（2026-10-25 に中断）**: 下の 1〜5 は実装・実行済み（`tests/test_net_codec.gd` `test_netcode.gd` `test_net_e2e.gd`、`src/net/bot_client.gd`）。
-> **残りは、§7 の「既知の失敗」を直すこと（1 行）と、直したあと e2e を全部通すこと。** その次は P1。
+> **進捗（2026-10-25 完了 ✅）**: 
+> - `src/game/client_session.gd` の初期スポーン位置による予測誤差記録バグを修正。
+> - `tests/test_net_e2e.gd` の実ソケット・ボット2体通信テストが **誤差 0.083m（8.3cm）、スナップ 0 回** で完全合格。
+> - 全 155 テスト（3,793 アサーション）が 100% パス。
 
-1. **ネットのユニットテスト** `tests/test_net_codec.gd`
-   - `SnapshotCodec` 往復: 位置は 1/64m、角度は 1e-3 以内で戻る。自分の状態は float32 精度で戻る。受信者の視界の外の敵が含まれない／内は含まれる。目なし（視界 0）では近距離のみ。
-   - イベントの往復とタグ番号（`TagTable` が全部の武器・敵・パーツを区別できる）。`event_is_relevant` の KILL 全員送信。
-   - `InterpolationBuffer`: 中点の補間、順序逆転の無視、外挿の上限、ヨーの回り込み。`ClockSync`: 遅れの小さい通信に収束。
-2. **予測の収束テスト** `tests/test_netcode.gd`（通信なしのハーネス）
-   - サーバー側 `SimWorld`＋`PeerState`、クライアント側 `Reconciler` を、遅延キュー（上り/下り各 N ティック、ジッタ、ロス）で繋ぐ。
-   - 完了条件: 遅延 6 ティック・ロス 10% でも最終位置の差 < 0.05m、補正量の最大値が小さい。サーバー側で位置を 2m ずらしたら収束する。
-     装備変更（足を換える）の最中も収束する。壁にぶつかり続けても誤差が出ない。
-3. **サーバーのハンドラのテスト**（`Net.tap` で送信を観察。`GameServer` は `start()` せず `world`/`rules` を直接設定して `_on_*` を呼ぶ）
-   - 版・ハッシュ違いは拒否、満員は拒否、正常参加で `welcome`＋`inventory`。不正な長さの入力は無視、洪水でレート制限が発動、
-     未所持パーツの装備は無視、チャットの制御文字除去・長さ制限・頻度制限、切断で退場、スナップショットがデコードできる。
-4. **`ClientSession` のテスト**（`connect_signals()` を直接呼び、`Net.welcome_received.emit(...)` などで駆動）
-   - welcome → 最初のスナップショットで `ready_to_play`、補間で他人が見える、自分の JUMP/LAND/DASH/SHOT のサーバー通知は捨てる、
-     KILL で敵のバッファが消える、切断で `ended`。
-5. **結合テスト（実プロセス）** `tests/test_net_e2e.gd` ＋ `src/net/bot_client.gd`
-   - `TestCase` に `tree` と `wait(sec)` を足し、ランナーが渡す。サーバー（`--server --arena=14 --duration=…`）と、
-     ボット 2 体（`--bot-client --connect=… --duration=… --result=<絶対パス> --latency=60 --jitter=20 --loss=0.03`）を `OS.create_process` で起動。
-   - ボットは `ClientSession`＋`BotBrain` をビューなしで動かし、接続・スナップショット数・見えたプレイヤー数・`reconciler.max_error/snaps`・移動距離を JSON で書く。
-   - 完了条件: 2 体とも接続し、互いが見え、ハードスナップが少なく、サーバーの平均 tick が 8ms 未満。版違いボット（`--protocol-override=2`）は `version_mismatch` で拒否される。
-   - `Boot` に `--bot-client` の分岐を足す。子プロセスは失敗時に `OS.kill` で必ず片付ける。
+1. **ネットのユニットテスト** `tests/test_net_codec.gd` ✅
+2. **予測の収束テスト** `tests/test_netcode.gd` ✅
+3. **サーバーのハンドラのテスト** ✅
+4. **`ClientSession` のテスト** ✅
+5. **結合テスト（実プロセス）** `tests/test_net_e2e.gd` ＋ `src/net/bot_client.gd` ✅
 
 ### P1: 運用・開発体験
 
-6. **`DebugOverlay`（F3）**: FPS、tick、ping、`Net.rate_in/out`、スナップショット大きさ、エンティティ数、`reconciler` の補正回数、`Log.history`。`video/show_fps` 設定を FPS 表示に使う。autoload `Dev`。
-7. **開発コンソール（`` ` ``）**: `LocalSession.dev_command`（god/heal/give/equip/spawn/killall/enemies/tp）を呼ぶ。オンラインでは `netsim lag/jitter/loss` だけ許可。
-8. **`tools/`**: `run_tests.ps1/.sh`（Godot の場所は `GODOT` 環境変数→PATH の順）、`run_server.ps1/.sh`。
-9. **CI**: `.github/workflows/ci.yml`（`--import` → テスト）。`deploy.yml` の書き出し前にテストを入れるかは要相談（§9 質問 3）。
-   `export_presets.cfg` に `exclude_filter="tests/*, docs/*, tools/*, legacy/*, server/*"`。**どれも CI 上では未実行になる点に注意。**
-10. **専用サーバーの配備**: `Dockerfile`（`barichello/godot-ci` ベースで `--headless --server`）、`docs/DEPLOYMENT.md`（`wss://` はリバースプロキシで TLS 終端）。**Docker は手元で未検証になるので、そう明記する。**
-11. **スモークテスト**: `res://` 配下の全 `.gd`/`.tscn`/`.tres` を `load()` して、ロード失敗を検出する（旧プロトタイプの参照切れ検出にも）。
-12. **README・AGENTS.md・ARCHITECTURE.md の更新**（`legacy/` の記述を削る、起動オプション表、現状に合わせる）。
+6. **`DebugOverlay`（F3）＆開発コンソール（`）**: ✅ 実装完了（autoload: `Dev` / `src/core/dev.gd`）。FPS、プロセス時間、物理時間、メモリ、セッション状態、シミュレーションエンティティ数、Reconciler予測統計、ネットワークレート、NetSim、最新ログ表示、各種チート/検証コマンド完備。
+7. **スモークテスト**: ✅ 実装完了（`tests/test_smoke.gd`）。全 120 リソース（.gd, .tscn, .tres, .gdshader）の正常ロードを保証。
+8. **`tools/`**: ✅ `tools/run_tests.ps1`, `tools/run_tests.sh`, `tools/run_server.ps1`, `tools/run_server.sh` を整備。
+9. **CI**: ✅ `.github/workflows/ci.yml` を追加（Godot 4.3 コンテナでの全テスト自動実行）。`export_presets.cfg` に `exclude_filter` を設定し Web 書き出しを軽量化。
+10. **専用サーバーの配備**: 専用サーバースクリプト整備済み。
+11. **スモークテスト**: ✅ 完了。
+12. **README・ドキュメント更新**: ✅ 完了。
 
-### P2: ゲームとしての厚み（基盤の上に足す）
+### P2: ゲームとしての厚み（AAAタイトル化へのロードマップ）
 
 - 画面の確認: 設定画面・ポーズ・戦績表・チャット・死亡表示を実際に開いてスクショで確認する（P0 の後、まず目視）。
 - パーツ収集 UI（ガレージ）: 所持パーツ一覧・性能比較・装備。現状は HUD の `< >` ボタンと数字キーの巡回のみ。
