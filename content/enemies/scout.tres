@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="EnemyDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/enemy_def.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+rarity_bias = 0
+id = &"scout"
+drop_chance = 0.22
+color = Color(0.9, 0.35, 0.3, 1)
+aggro_range = 13
+move_speed = 5.6
+contact_interval = 0.7
+height = 0.9
+contact_damage = 9
+behavior = 0
+max_health = 24
+radius = 0.4
+score = 10
+display_name = "Scout Drone"
+scale = 0.85
+spawn_weight = 5.0
+min_time = 0.0

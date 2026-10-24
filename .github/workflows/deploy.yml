@@ -1,0 +1,72 @@
+name: "Deploy to GitHub Pages"
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# GitHub Pages への書き込み権限
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+env:
+  GODOT_VERSION: "4.3"
+
+jobs:
+  export_web:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup Export Templates
+        run: |
+          mkdir -v -p ~/.local/share/godot/export_templates/
+          if [ -d "/root/.local/share/godot/export_templates/${GODOT_VERSION}.stable" ]; then
+            ln -s /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          fi
+
+      - name: Import Assets
+        run: |
+          godot --headless --editor --quit || true
+
+      - name: Setup Export Directory
+        run: |
+          mkdir -v -p build/web
+
+      - name: Web Export
+        run: |
+          godot --headless --verbose --export-release "Web" build/web/index.html
+
+      - name: Copy coi-serviceworker for COOP/COEP support
+        run: |
+          if [ -f coi-serviceworker.js ]; then
+            cp -v coi-serviceworker.js build/web/
+          fi
+
+      - name: Upload Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy:
+    needs: export_web
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

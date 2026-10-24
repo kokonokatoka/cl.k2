@@ -1,0 +1,33 @@
+[gd_scene load_steps=5 format=3]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_housing"]
+albedo_color = Color(0.18, 0.19, 0.22, 1)
+metallic = 0.6
+roughness = 0.4
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_housing"]
+material = SubResource("StandardMaterial3D_housing")
+top_radius = 0.1
+bottom_radius = 0.1
+height = 0.14
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_lens"]
+albedo_color = Color(1, 0.2, 0.1, 1)
+emission_enabled = true
+emission = Color(1, 0.2, 0.1, 1)
+emission_energy_multiplier = 3.0
+
+[sub_resource type="SphereMesh" id="SphereMesh_lens"]
+material = SubResource("StandardMaterial3D_lens")
+radius = 0.065
+height = 0.13
+
+[node name="ScopeEye" type="Node3D"]
+
+[node name="Housing" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, -0.05)
+mesh = SubResource("CylinderMesh_housing")
+
+[node name="Lens" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.11)
+mesh = SubResource("SphereMesh_lens")

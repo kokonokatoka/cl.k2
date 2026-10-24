@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="LegPart" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://src/data/parts/leg_part.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://content/parts/visual/legs_roller.tscn" id="2_visual"]
+
+[resource]
+script = ExtResource("1_script")
+dash_time = 0.22
+id = &"legs_roller"
+ride_height = 0.34
+rarity = 1
+move_speed = 10
+jump_velocity = 0
+description = "Fast and slippery. Cannot jump."
+dash_cooldown = 0.5
+dash_speed = 24
+acceleration = 26
+accent = Color(0.4, 0.8, 1, 1)
+dash_cost = 30
+display_name = "Roller Legs"
+visual = ExtResource("2_visual")

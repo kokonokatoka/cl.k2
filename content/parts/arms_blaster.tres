@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ArmPart" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/parts/arm_part.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"arms_blaster"
+projectile_life = 0.9
+rarity = 0
+starter = true
+damage = 12
+pellets = 1
+pierce = 0
+description = "Standard-issue energy pistol."
+projectile_speed = 28
+fire_interval = 0.26
+accent = Color(1, 0.7, 0.25, 1)
+shot_cost = 3.5
+spread_degrees = 1.5
+display_name = "Blaster"
+weapon_kind = &"blaster"

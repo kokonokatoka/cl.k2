@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="ArmPart" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/parts/arm_part.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"arms_scatter"
+projectile_life = 0.5
+rarity = 1
+damage = 6.5
+pellets = 6
+pierce = 0
+description = "Shreds anything up close."
+projectile_speed = 24
+fire_interval = 0.8
+accent = Color(1, 0.45, 0.2, 1)
+shot_cost = 14
+spread_degrees = 10
+display_name = "Scatter Cannon"
+weapon_kind = &"scatter"

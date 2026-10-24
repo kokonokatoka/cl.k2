@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="ArmPart" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/parts/arm_part.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"arms_pulse"
+projectile_life = 0.8
+rarity = 1
+damage = 6.5
+pellets = 1
+pierce = 0
+description = "Rapid fire. Thirsty for energy."
+projectile_speed = 32
+fire_interval = 0.085
+accent = Color(0.4, 0.9, 1, 1)
+shot_cost = 2.2
+spread_degrees = 3.5
+display_name = "Pulse Rifle"
+weapon_kind = &"pulse"

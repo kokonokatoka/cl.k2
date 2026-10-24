@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="CorePart" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/parts/core_part.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+armor = 4
+accent = Color(0.6, 0.65, 0.7, 1)
+id = &"core_plate"
+max_energy = 80
+display_name = "Plated Core"
+description = "Armoured housing. Slow to recharge."
+rarity = 1
+energy_regen = 10
+max_health = 170

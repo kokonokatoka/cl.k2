@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="ArmPart" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/parts/arm_part.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"arms_rail"
+projectile_life = 0.7
+rarity = 2
+damage = 70
+pellets = 1
+pierce = 3
+description = "One shot, many holes."
+projectile_speed = 70
+fire_interval = 1.1
+accent = Color(0.85, 0.5, 1, 1)
+shot_cost = 30
+spread_degrees = 0
+display_name = "Railgun"
+weapon_kind = &"rail"

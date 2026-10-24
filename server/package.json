@@ -1,0 +1,12 @@
+{
+  "name": "godot-game-relay-server",
+  "version": "1.0.0",
+  "description": "Lightweight WebSocket relay server for Godot 4 Web Online Game",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

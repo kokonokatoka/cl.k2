@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="EyePart" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://src/data/parts/eye_part.gd" id="1_script"]
+[ext_resource type="Script" path="res://src/data/stat_modifier.gd" id="3_mod"]
+
+[sub_resource type="Resource" id="Resource_mod1"]
+script = ExtResource("3_mod")
+stat = &"energy_regen"
+op = 0
+value = 4
+
+[resource]
+script = ExtResource("1_script")
+id = &"eye_oracle"
+description = "Sees the whole arena. Nothing approaches unseen."
+vision_tint = Color(1, 0.8, 0.3, 0.1)
+vision_range = 19
+rarity = 3
+accent = Color(1, 0.8, 0.25, 1)
+display_name = "Oracle Eye"
+modifiers = Array[ExtResource("3_mod")]([SubResource("Resource_mod1")])

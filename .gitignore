@@ -1,0 +1,29 @@
+# Godot 4+ specific ignores
+.godot/
+*.translation
+
+# Cache & Temporary
+.import/
+*.tmp
+*.log
+
+# Mono / .NET (if used)
+.mono/
+data_*/
+mono_crash.*.json
+
+# OS specific
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Node / Relay Server
+node_modules/
+package-lock.json
+
+# Builds (local exports)
+build/
+dist/
+
+# Godot 4.4+ UID files
+*.uid

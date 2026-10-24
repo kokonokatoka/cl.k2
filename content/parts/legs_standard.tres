@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="LegPart" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://src/data/parts/leg_part.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://content/parts/visual/legs_standard.tscn" id="2_visual"]
+
+[resource]
+script = ExtResource("1_script")
+dash_time = 0.18
+id = &"legs_standard"
+ride_height = 0.5
+rarity = 0
+starter = true
+move_speed = 5
+jump_velocity = 8
+description = "Reliable bipedal chassis."
+dash_cooldown = 0.45
+dash_speed = 14
+acceleration = 40
+accent = Color(0.7, 0.75, 0.8, 1)
+dash_cost = 25
+display_name = "Standard Legs"
+visual = ExtResource("2_visual")

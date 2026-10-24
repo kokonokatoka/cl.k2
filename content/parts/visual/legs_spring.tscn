@@ -1,0 +1,53 @@
+[gd_scene load_steps=7 format=3]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_metal"]
+albedo_color = Color(0.55, 0.58, 0.62, 1)
+metallic = 0.5
+roughness = 0.5
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_rod"]
+material = SubResource("StandardMaterial3D_metal")
+top_radius = 0.04
+bottom_radius = 0.04
+height = 0.52
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_spring"]
+albedo_color = Color(1, 0.8, 0.1, 1)
+metallic = 0.3
+roughness = 0.4
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_coil"]
+material = SubResource("StandardMaterial3D_spring")
+top_radius = 0.09
+bottom_radius = 0.09
+height = 0.3
+
+[sub_resource type="BoxMesh" id="BoxMesh_pad"]
+material = SubResource("StandardMaterial3D_metal")
+size = Vector3(0.24, 0.08, 0.3)
+
+[node name="SpringLegs" type="Node3D"]
+
+[node name="LeftRod" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, -0.28, 0)
+mesh = SubResource("CylinderMesh_rod")
+
+[node name="LeftCoil" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, -0.28, 0)
+mesh = SubResource("CylinderMesh_coil")
+
+[node name="LeftPad" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, -0.56, 0)
+mesh = SubResource("BoxMesh_pad")
+
+[node name="RightRod" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, -0.28, 0)
+mesh = SubResource("CylinderMesh_rod")
+
+[node name="RightCoil" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, -0.28, 0)
+mesh = SubResource("CylinderMesh_coil")
+
+[node name="RightPad" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, -0.56, 0)
+mesh = SubResource("BoxMesh_pad")

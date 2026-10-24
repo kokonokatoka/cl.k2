@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="EnemyDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/enemy_def.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+preferred_distance = 8.5
+id = &"gunner"
+scale = 1
+display_name = "Gunner Drone"
+contact_damage = 6
+behavior = 1
+height = 1.1
+projectile_damage = 8
+radius = 0.45
+color = Color(0.95, 0.65, 0.2, 1)
+projectile_speed = 15
+fire_interval = 1.35
+contact_interval = 1
+max_health = 38
+rarity_bias = 1
+drop_chance = 0.3
+score = 20
+aggro_range = 16
+move_speed = 3.4
+spawn_weight = 3.0
+min_time = 20.0

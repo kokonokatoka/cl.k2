@@ -1,0 +1,32 @@
+[gd_scene load_steps=4 format=3]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_metal"]
+albedo_color = Color(0.55, 0.58, 0.62, 1)
+metallic = 0.5
+roughness = 0.5
+
+[sub_resource type="BoxMesh" id="BoxMesh_leg"]
+material = SubResource("StandardMaterial3D_metal")
+size = Vector3(0.2, 0.5, 0.24)
+
+[sub_resource type="BoxMesh" id="BoxMesh_foot"]
+material = SubResource("StandardMaterial3D_metal")
+size = Vector3(0.26, 0.08, 0.34)
+
+[node name="StandardLegs" type="Node3D"]
+
+[node name="LeftLeg" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.22, -0.25, 0)
+mesh = SubResource("BoxMesh_leg")
+
+[node name="LeftFoot" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.22, -0.46, -0.04)
+mesh = SubResource("BoxMesh_foot")
+
+[node name="RightLeg" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.22, -0.25, 0)
+mesh = SubResource("BoxMesh_leg")
+
+[node name="RightFoot" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.22, -0.46, -0.04)
+mesh = SubResource("BoxMesh_foot")

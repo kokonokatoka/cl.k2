@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="LegPart" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://src/data/parts/leg_part.gd" id="1_script"]
+[ext_resource type="Script" path="res://src/data/stat_modifier.gd" id="3_mod"]
+
+[sub_resource type="Resource" id="Resource_mod1"]
+script = ExtResource("3_mod")
+stat = &"armor"
+op = 0
+value = 4
+
+[sub_resource type="Resource" id="Resource_mod2"]
+script = ExtResource("3_mod")
+stat = &"max_health"
+op = 0
+value = 40
+
+[resource]
+script = ExtResource("1_script")
+dash_time = 0.2
+id = &"legs_tank"
+ride_height = 0.3
+rarity = 2
+move_speed = 3.2
+jump_velocity = 0
+description = "Heavy treads. Slow, but built like a wall."
+dash_cooldown = 0.8
+dash_speed = 9
+acceleration = 24
+accent = Color(0.55, 0.6, 0.45, 1)
+dash_cost = 22
+display_name = "Tread Legs"
+modifiers = Array[ExtResource("3_mod")]([SubResource("Resource_mod1"), SubResource("Resource_mod2")])

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="EyePart" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://src/data/parts/eye_part.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://content/parts/visual/eye_night.tscn" id="2_visual"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"eye_night"
+description = "Wide, green-tinted sight. The dark holds no secrets."
+vision_tint = Color(0.2, 1, 0.35, 0.3)
+vision_range = 12
+rarity = 1
+accent = Color(0.3, 1, 0.45, 1)
+display_name = "Night Vision Eye"
+visual = ExtResource("2_visual")

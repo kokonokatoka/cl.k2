@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="CorePart" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/parts/core_part.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+armor = 0
+accent = Color(0.9, 0.55, 0.2, 1)
+id = &"core_standard"
+max_energy = 100
+display_name = "Standard Core"
+description = "A dependable reactor."
+starter = true
+rarity = 0
+energy_regen = 14
+max_health = 100
