@@ -19,9 +19,12 @@ func _ready() -> void:
 	root.theme = UiTheme.get_theme()
 	add_child(root)
 	var box := VBoxContainer.new()
-	box.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-	box.position = Vector2(16, -250)
-	box.custom_minimum_size = Vector2(460, 0)
+	box.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	box.offset_left = 24
+	box.offset_top = -240
+	box.offset_right = 460
+	box.offset_bottom = -50
+	box.custom_minimum_size = Vector2(436, 0)
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.alignment = BoxContainer.ALIGNMENT_END
 	root.add_child(box)

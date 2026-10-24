@@ -263,8 +263,10 @@ func _make_cyber_button(parent: Control, label_text: String, callback: Callable,
 	btn.add_theme_color_override("font_pressed_color", accent_color)
 	btn.add_theme_font_size_override("font_size", 14)
 
+	btn.mouse_entered.connect(func() -> void:
+		Audio.play_ui(&"ui_hover", -6.0))
 	btn.pressed.connect(func() -> void:
-		Audio.play_ui(&"click")
+		Audio.play_ui(&"ui_click")
 		callback.call())
 	parent.add_child(btn)
 	return btn

@@ -231,7 +231,7 @@ func _execute_console_command(line: String) -> void:
 		"fps":
 			if args.size() > 0:
 				var on := args[0] == "1" or args[0] == "on" or args[0] == "true"
-				Settings.set_setting("video/show_fps", on)
+				Settings.set_value("video/show_fps", on)
 				_console_output.append_text("FPS display: %s\n" % ("ON" if on else "OFF"))
 		"netsim":
 			if args.is_empty():

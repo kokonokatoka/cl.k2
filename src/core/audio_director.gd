@@ -104,6 +104,13 @@ func stop_music() -> void:
 		_music_player.stop()
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	# WebブラウザのAutoplay規制対策: ユーザーの初操作時に音楽を再開
+	if _enabled and _music_stream != null and _music_player != null and not _music_player.playing:
+		if event is InputEventMouseButton or event is InputEventKey:
+			_music_player.play()
+
+
 func _play(pool: Array[AudioStreamPlayer], sound: StringName, volume_db: float, pitch: float) -> void:
 	for player in pool:
 		if not player.playing:
